@@ -145,6 +145,10 @@ export function DatePicker({
     startInputRef,
     endInputRef,
     calendarRef,
+    startInputValue,
+    endInputValue,
+    startInputTouched,
+    endInputTouched,
   } = useDatePicker({
     datePickerType,
     value,
@@ -192,10 +196,18 @@ export function DatePicker({
       ? endInputRef
       : undefined;
 
-    // Get the appropriate value - always use a string to keep input controlled
+    // Get the appropriate value - prefer raw input value (for typing), fallback to formatted date
+    // This allows typing to work after date selection
     let inputValue = child.props.value ?? '';
     if (inputValue === '') {
-      if (isStartInput && context.startDate) {
+      // Check if user has touched this input
+      const isTouched = isStartInput ? startInputTouched : endInputTouched;
+      
+      if (isTouched) {
+        // Use raw input value if user has typed (even if empty)
+        inputValue = isStartInput ? startInputValue : endInputValue;
+      } else if (isStartInput && context.startDate) {
+        // Fallback to formatted date from state machine only if user hasn't touched input
         inputValue = formatPlainDate(context.startDate, context.dateFormat);
       } else if (isEndInput && context.endDate) {
         inputValue = formatPlainDate(context.endDate, context.dateFormat);

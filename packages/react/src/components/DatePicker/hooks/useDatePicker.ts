@@ -157,6 +157,26 @@ export interface UseDatePickerReturn {
    * Ref for the calendar container
    */
   calendarRef: React.RefObject<HTMLDivElement>;
+
+  /**
+   * Raw input value for start/from input (for uncontrolled editing)
+   */
+  startInputValue: string;
+
+  /**
+   * Raw input value for end/to input (for uncontrolled editing in range mode)
+   */
+  endInputValue: string;
+
+  /**
+   * Whether start input has been touched by user
+   */
+  startInputTouched: boolean;
+
+  /**
+   * Whether end input has been touched by user
+   */
+  endInputTouched: boolean;
 }
 
 // Note: parseDate and temporalToDate functions removed - now using shared utilities
@@ -192,7 +212,11 @@ export function useDatePicker(
   const startInputRef = useRef<HTMLInputElement>(null);
   const endInputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
+  
 
+  // Ref to track if we're programmatically focusing (to prevent reopening calendar)
+  const isProgrammaticFocusRef = useRef(false);
+  
   // State machine instance (persists across renders)
   const machineRef = useRef<DatePickerStateMachine | null>(null);
 
@@ -215,6 +239,13 @@ export function useDatePicker(
   const [state, setState] = useState<DatePickerState>(() => {
     return machineRef.current?.getState() || DatePickerState.IDLE;
   });
+
+  // Track raw input values for uncontrolled editing (like Web Components does)
+  const [startInputValue, setStartInputValue] = useState<string>('');
+  const [endInputValue, setEndInputValue] = useState<string>('');
+  // Track if user has interacted with inputs (to distinguish empty from never-touched)
+  const [startInputTouched, setStartInputTouched] = useState<boolean>(false);
+  const [endInputTouched, setEndInputTouched] = useState<boolean>(false);
 
   // Subscribe to state machine changes
   useEffect(() => {
@@ -239,10 +270,39 @@ export function useDatePicker(
       ) {
         onClose();
       }
+
+      // Restore focus to input when calendar closes after date selection
+      if (
+        (transition.to === DatePickerState.IDLE ||
+          transition.to === DatePickerState.FOCUSED) &&
+        transition.from === DatePickerState.DATE_SELECTED
+      ) {
+        // Use setTimeout to ensure calendar is fully closed before focusing
+        setTimeout(() => {
+          // Set flag BEFORE focusing to prevent handleInputFocus from opening calendar
+          isProgrammaticFocusRef.current = true;
+          
+          const inputToFocus = datePickerType === 'range' && transition.context.lastFocusedInput === 'to'
+            ? endInputRef.current
+            : startInputRef.current;
+          
+          if (inputToFocus) {
+            inputToFocus.focus();
+            // Move cursor to end of text
+            const length = inputToFocus.value.length;
+            inputToFocus.setSelectionRange(length, length);
+          }
+          
+          // Clear flag on next tick to allow subsequent interactions
+          setTimeout(() => {
+            isProgrammaticFocusRef.current = false;
+          }, 0);
+        }, 0);
+      }
     });
 
     return unsubscribe;
-  }, [onOpen, onClose, context.isOpen]);
+  }, [onOpen, onClose, context.isOpen, datePickerType]);
 
   // Track previous dates to prevent infinite loops
   const prevDatesRef = useRef<string>('');
@@ -349,6 +409,7 @@ export function useDatePicker(
           closeCalendar();
         }
       }
+      // Note: Focus is restored in the state machine subscription when calendar closes
     },
     [
       datePickerType,
@@ -362,11 +423,14 @@ export function useDatePicker(
 
   const handleInputFocus = useCallback(
     (inputType: 'from' | 'to' = 'from') => {
-      // Send INPUT_FOCUS to transition to FOCUSED state
+      // Always send INPUT_FOCUS to transition to FOCUSED state
       send(DatePickerEvent.INPUT_FOCUS, { inputType });
-      // Then send CALENDAR_OPEN to open the calendar
-      // This matches the expected state machine flow: IDLE -> FOCUSED -> CALENDAR_OPEN
-      send(DatePickerEvent.CALENDAR_OPEN);
+      
+      // Skip opening calendar if this is a programmatic focus (after date selection)
+      if (!isProgrammaticFocusRef.current) {
+        // Then send CALENDAR_OPEN to open the calendar
+        send(DatePickerEvent.CALENDAR_OPEN);
+      }
     },
     [send]
   );
@@ -377,6 +441,15 @@ export function useDatePicker(
 
   const handleInputChange = useCallback(
     (value: string, inputType: 'from' | 'to' = 'from') => {
+      // Update local input value state to allow typing
+      // Mark as touched so we know user has interacted
+      if (inputType === 'from') {
+        setStartInputValue(value);
+        setStartInputTouched(true);
+      } else {
+        setEndInputValue(value);
+        setEndInputTouched(true);
+      }
       send(DatePickerEvent.VALUE_CHANGE, { value, inputType });
     },
     [send]
@@ -436,6 +509,12 @@ export function useDatePicker(
       const { key } = event;
       const target = event.target as HTMLElement;
 
+      // Clear programmatic focus flag on any user keyboard interaction
+      // This ensures Tab and other keys work immediately after date selection
+      if (isProgrammaticFocusRef.current) {
+        isProgrammaticFocusRef.current = false;
+      }
+
       // Check if focus is in the calendar (not in input fields)
       const calendarEl = calendarRef.current;
       const startInputEl = startInputRef.current;
@@ -462,10 +541,17 @@ export function useDatePicker(
 
       // Handle Tab key - complex focus management
       if (key === 'Tab') {
-        // Case 1: Tab FROM input -> Focus the calendar container
+        // Case 1: Tab FROM input -> Open calendar if closed, or focus it if open
         if (isFocusInInput && !event.shiftKey) {
           event.preventDefault();
-          // Focus the calendar container which has tabIndex={0}
+          
+          // If calendar is closed, open it
+          if (!context.isOpen) {
+            send(DatePickerEvent.CALENDAR_OPEN);
+            return;
+          }
+          
+          // If calendar is open, focus the calendar container which has tabIndex={0}
           if (calendarEl) {
             setTimeout(() => {
               const calendar = calendarEl.querySelector(
@@ -559,5 +645,9 @@ export function useDatePicker(
     startInputRef,
     endInputRef,
     calendarRef,
+    startInputValue,
+    endInputValue,
+    startInputTouched,
+    endInputTouched,
   };
 }

@@ -80,6 +80,11 @@ class CDSDatePicker extends HostListenerMixin(FormMixin(LitElement)) {
   private _clickOutsideHandler: ClickOutsideHandler | null = null;
 
   /**
+   * Flag to track if we're programmatically focusing (to prevent reopening calendar)
+   */
+  private _isProgrammaticFocus = false;
+
+  /**
    * Timestamp of when calendar was last closed via Tab key
    */
   private _lastTabCloseTime = 0;
@@ -150,13 +155,15 @@ class CDSDatePicker extends HostListenerMixin(FormMixin(LitElement)) {
   private _handleInputFocus = (event: CustomEvent) => {
     if (this._adapter && !this.disabled && !this.readonly) {
       const { inputType } = event.detail || {};
+      // Always send INPUT_FOCUS to transition to FOCUSED state
       this._adapter.send(DatePickerEvent.INPUT_FOCUS, { inputType });
 
-      // Don't auto-open calendar if we JUST closed it via Tab key (within 100ms)
-      // This prevents the immediate reopen when Tab moves focus to input,
-      // but allows normal opening after that brief window
+      // Don't auto-open calendar if:
+      // 1. We JUST closed it via Tab key (within 100ms), OR
+      // 2. This is a programmatic focus (after date selection)
+      // This allows typing and subsequent Tab key presses to work normally
       const timeSinceTabClose = Date.now() - this._lastTabCloseTime;
-      const shouldSkipOpen = timeSinceTabClose < 100;
+      const shouldSkipOpen = timeSinceTabClose < 100 || this._isProgrammaticFocus;
 
       if (!shouldSkipOpen) {
         // Open calendar when input is focused (matching current Carbon behavior)
@@ -267,6 +274,46 @@ class CDSDatePicker extends HostListenerMixin(FormMixin(LitElement)) {
       this.open = context.isOpen ?? false;
       // Trigger re-render to update the calendar visibility
       this.requestUpdate();
+    }
+
+    // Restore focus to input when calendar closes after date selection
+    if (
+      (newState === DatePickerState.IDLE || newState === DatePickerState.FOCUSED) &&
+      from === DatePickerState.DATE_SELECTED
+    ) {
+      // Use setTimeout to ensure calendar is fully closed before focusing
+      setTimeout(() => {
+        // Set flag to prevent focus handler from reopening calendar
+        this._isProgrammaticFocus = true;
+        
+        let inputElement: HTMLInputElement | null | undefined = null;
+        
+        if (this._mode === DATE_PICKER_MODE.RANGE && context.lastFocusedInput === 'to') {
+          const { selectorInputTo } = this.constructor as typeof CDSDatePicker;
+          const inputTo = this.querySelector(selectorInputTo) as CDSDatePickerInput;
+          inputElement = inputTo?.input;
+        } else {
+          if (this._mode === DATE_PICKER_MODE.RANGE) {
+            const { selectorInputFrom } = this.constructor as typeof CDSDatePicker;
+            const inputFrom = this.querySelector(selectorInputFrom) as CDSDatePickerInput;
+            inputElement = inputFrom?.input;
+          } else {
+            inputElement = this._dateInteractNode?.input;
+          }
+        }
+        
+        if (inputElement) {
+          inputElement.focus();
+          // Move cursor to end of text
+          const length = inputElement.value.length;
+          inputElement.setSelectionRange(length, length);
+        }
+        
+        // Reset flag after a short delay
+        setTimeout(() => {
+          this._isProgrammaticFocus = false;
+        }, 50);
+      }, 0);
     }
 
     // Dispatch change event and update input when dates are selected
@@ -385,6 +432,7 @@ class CDSDatePicker extends HostListenerMixin(FormMixin(LitElement)) {
       // Single mode: select date
       this._adapter.send(DatePickerEvent.DATE_SELECT, { date });
     }
+    // Note: Focus is restored in _handleStateChange when calendar closes
   };
 
   /**
@@ -628,10 +676,18 @@ class CDSDatePicker extends HostListenerMixin(FormMixin(LitElement)) {
         target.closest?.('cds-date-picker-calendar') !== null ||
         composedPath.includes(calendar);
 
-      // Case 1: Tab FROM first input -> Focus calendar (if open)
-      if (this.open && isOnFirstInput && !event.shiftKey) {
+      // Case 1: Tab FROM first input -> Open calendar if closed, or focus it if open
+      if (isOnFirstInput && !event.shiftKey) {
         event.preventDefault();
         event.stopPropagation();
+        
+        // If calendar is closed, open it
+        if (!this.open) {
+          this._adapter.send(DatePickerEvent.CALENDAR_OPEN);
+          return;
+        }
+        
+        // If calendar is open, focus it
         const calendarElement = this.shadowRoot?.querySelector(
           'cds-date-picker-calendar'
         ) as any;
@@ -646,15 +702,22 @@ class CDSDatePicker extends HostListenerMixin(FormMixin(LitElement)) {
         return;
       }
 
-      // Case 2: Tab FROM second input (range mode) -> Focus calendar (if open)
+      // Case 2: Tab FROM second input (range mode) -> Open calendar if closed, or focus it if open
       if (
-        this.open &&
         isOnSecondInput &&
         !event.shiftKey &&
         this._mode === DATE_PICKER_MODE.RANGE
       ) {
         event.preventDefault();
         event.stopPropagation(); // Prevent input from handling the event
+        
+        // If calendar is closed, open it
+        if (!this.open) {
+          this._adapter.send(DatePickerEvent.CALENDAR_OPEN);
+          return;
+        }
+        
+        // If calendar is open, focus it
         const calendarElement = this.shadowRoot?.querySelector(
           'cds-date-picker-calendar'
         ) as any;
