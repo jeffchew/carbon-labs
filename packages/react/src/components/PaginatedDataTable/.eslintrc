@@ -1,0 +1,6 @@
+{
+  "rules": {
+    "react/forbid-component-props": "off",
+    "react/forbid-dom-props": "off"
+  }
+}

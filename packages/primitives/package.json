@@ -23,10 +23,10 @@
       "import": "./es/index.js",
       "default": "./es/index.js"
     },
-    "./date-picker": {
-      "types": "./es/date-picker/index.d.ts",
-      "import": "./es/date-picker/index.js",
-      "default": "./es/date-picker/index.js"
+    "./*": {
+      "types": "./es/*/index.d.ts",
+      "import": "./es/*/index.js",
+      "default": "./es/*/index.js"
     },
     "./es/*": {
       "types": "./es/*.d.ts",

@@ -1,0 +1,34 @@
+{
+  "name": "@carbon-labs/react-paginated-data-table",
+  "version": "0.1.0",
+  "description": "Data table component with pagination for efficiently handling large datasets using shared primitives",
+  "main": "lib/index.js",
+  "module": "es/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/carbon-design-system/carbon-labs.git",
+    "directory": "packages/react/src/components/PaginatedDataTable"
+  },
+  "bugs": "https://github.com/carbon-design-system/carbon-labs/issues",
+  "keywords": [
+    "carbon",
+    "carbon-labs",
+    "react",
+    "data-table",
+    "pagination",
+    "large-dataset",
+    "performance",
+    "web-worker",
+    "indexeddb"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0",
+    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0"
+  },
+  "dependencies": {
+    "@carbon-labs/primitives": "workspace:*"
+  }
+}

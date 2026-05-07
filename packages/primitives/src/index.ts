@@ -7,3 +7,9 @@
 
 // Export date picker primitives
 export * from './date-picker/index.js';
+
+// Export paginated table primitives
+export * from './paginated-table/index.js';
+
+// Export data generator utilities
+export * from './data-generator/index.js';

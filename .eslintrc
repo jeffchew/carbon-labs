@@ -6,14 +6,17 @@
     {
       "files": [
         "**/*.stories.ts",
-        "**/*.stories.js"
+        "**/*.stories.js",
+        "**/*.stories.tsx",
+        "**/*.stories.jsx"
       ],
       "rules": {
         "jsdoc/require-jsdoc": 0,
         "jsdoc/require-param-description": 0,
         "jsdoc/require-param-name": 0,
         "jsdoc/require-param": 0,
-        "jsdoc/require-param-type": 0
+        "jsdoc/require-param-type": 0,
+        "react/forbid-component-props": 0
       }
     },
     {

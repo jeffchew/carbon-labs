@@ -1691,6 +1691,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@carbon-labs/react-paginated-data-table@workspace:packages/react/src/components/PaginatedDataTable":
+  version: 0.0.0-use.local
+  resolution: "@carbon-labs/react-paginated-data-table@workspace:packages/react/src/components/PaginatedDataTable"
+  dependencies:
+    "@carbon-labs/primitives": "workspace:*"
+  peerDependencies:
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0
+    react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
+  languageName: unknown
+  linkType: soft
+
 "@carbon-labs/react-plane-stack-3d@workspace:packages/react/src/components/PlaneStack3D":
   version: 0.0.0-use.local
   resolution: "@carbon-labs/react-plane-stack-3d@workspace:packages/react/src/components/PlaneStack3D"
