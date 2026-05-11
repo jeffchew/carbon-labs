@@ -183,6 +183,107 @@ function LargeTable() {
 }
 ```
 
+### Async Data Loading with `loadData` (Recommended)
+
+**New in v2.0**: The simplest way to handle async data is using the `loadData` prop. The component automatically manages loading state and displays a skeleton while data loads.
+
+This approach is used in the **Medium and Large dataset stories** in Storybook.
+
+```tsx
+import { PaginatedDataTable } from '@carbon-labs/react';
+import {
+  Table,
+  TableHead,
+  TableRow,
+  TableHeader,
+  TableBody,
+  TableCell,
+  TableContainer,
+  Pagination,
+} from '@carbon/react';
+
+const headers = [
+  { key: 'name', header: 'Name' },
+  { key: 'status', header: 'Status' },
+  { key: 'region', header: 'Region' },
+];
+
+// Your async data loading function
+async function loadServerData() {
+  // Simulate API call or expensive data generation
+  const chunkSize = 1000;
+  const totalRows = 5000;
+  const allRows = [];
+
+  for (let i = 0; i < totalRows; i += chunkSize) {
+    // Yield control to prevent blocking
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    
+    const chunk = Array.from({ length: chunkSize }, (_, idx) => ({
+      id: `server-${i + idx}`,
+      name: `Server ${i + idx + 1}`,
+      status: idx % 2 === 0 ? 'Active' : 'Inactive',
+      region: ['US-East', 'US-West', 'EU-West', 'AP-South'][idx % 4],
+    }));
+    
+    allRows.push(...chunk);
+  }
+
+  return allRows;
+}
+
+function MediumTable() {
+  return (
+    <PaginatedDataTable
+      loadData={loadServerData}
+      headers={headers}
+      useWorker // Auto-enabled for >10K rows
+      cacheKey="servers-5k" // Optional: cache results
+      skeletonRows={10} // Optional: number of skeleton rows (default: 10)
+    >
+      {({
+        rows,
+        headers,
+        getHeaderProps,
+        getRowProps,
+        getTableProps,
+        getPaginationProps,
+      }) => (
+        <TableContainer title="Servers" description="5,000 servers">
+          <Table {...getTableProps()}>
+            <TableHead>
+              <TableRow>
+                {headers.map((header) => (
+                  <TableHeader {...getHeaderProps({ header })} key={header.key}>
+                    {header.header}
+                  </TableHeader>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow {...getRowProps({ row })} key={row.id}>
+                  {row.cells.map((cell) => (
+                    <TableCell key={cell.id}>{cell.value}</TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Pagination {...getPaginationProps()} />
+        </TableContainer>
+      )}
+    </PaginatedDataTable>
+  );
+}
+```
+
+**Benefits of `loadData`:**
+- ✅ Automatic skeleton state management
+- ✅ No manual loading state tracking
+- ✅ Cleaner component code
+- ✅ Built-in error handling with `onLoadError` callback
+
 ### Sortable Table
 
 Enable sorting by adding `isSortable` prop:

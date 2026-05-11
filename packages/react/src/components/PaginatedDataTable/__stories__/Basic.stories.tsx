@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { PaginatedDataTable, useAsyncDataGeneration } from '../';
+import { PaginatedDataTable } from '../';
 import {
   Table,
   TableHead,
@@ -36,15 +36,7 @@ const headers = [
 ];
 
 export const SmallDataset = () => {
-  const [rows, setRows] = useState<any[]>([]);
-
-  useEffect(() => {
-    setRows(generateRows(100));
-  }, []);
-
-  if (rows.length === 0) {
-    return <div style={{ padding: '2rem' }}>Loading...</div>;
-  }
+  const rows = generateRows(100);
 
   return (
     <div style={{ padding: '2rem' }}>
@@ -89,26 +81,28 @@ export const SmallDataset = () => {
 };
 
 export const MediumDataset = () => {
-  const { data: rows, skeleton } = useAsyncDataGeneration({
-    totalRows: 1000,
-    generateBatch: (count, startIndex) => {
-      const chunk = generateRows(count);
-      return chunk.map((row, idx) => ({
-        ...row,
-        id: `row-${startIndex + idx}`,
-      }));
-    },
-    headers,
-  });
+  // Async data loading function
+  const loadData = async () => {
+    const chunkSize = 500;
+    const totalRows = 1000;
+    const allRows: any[] = [];
 
-  if (skeleton) {
-    return skeleton;
-  }
+    // Generate data in chunks to avoid blocking the main thread
+    for (let i = 0; i < totalRows; i += chunkSize) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      const chunk = generateRows(Math.min(chunkSize, totalRows - i));
+      allRows.push(
+        ...chunk.map((row, idx) => ({ ...row, id: `row-${i + idx}` }))
+      );
+    }
+
+    return allRows;
+  };
 
   return (
     <div style={{ padding: '2rem' }}>
       <PaginatedDataTable
-        rows={rows}
+        loadData={loadData}
         headers={headers}
         defaultPageSize={50}
         pageSizes={[25, 50, 100, 200]}>
@@ -122,7 +116,7 @@ export const MediumDataset = () => {
         }) => (
           <TableContainer
             title="DataTable"
-            description="1,000 rows - Async generation">
+            description="1,000 rows - Async generation (chunked on main thread)">
             <Table {...getTableProps()}>
               <TableHead>
                 <TableRow>
@@ -154,26 +148,28 @@ export const MediumDataset = () => {
 };
 
 export const LargeDataset = () => {
-  const { data: rows, skeleton } = useAsyncDataGeneration({
-    totalRows: 10000,
-    generateBatch: (count, startIndex) => {
-      const chunk = generateRows(count);
-      return chunk.map((row, idx) => ({
-        ...row,
-        id: `row-${startIndex + idx}`,
-      }));
-    },
-    headers,
-  });
+  // Async data loading function
+  const loadData = async () => {
+    const chunkSize = 1000;
+    const totalRows = 10000;
+    const allRows: any[] = [];
 
-  if (skeleton) {
-    return skeleton;
-  }
+    // Generate data in chunks to avoid blocking the main thread
+    for (let i = 0; i < totalRows; i += chunkSize) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const chunk = generateRows(Math.min(chunkSize, totalRows - i));
+      allRows.push(
+        ...chunk.map((row, idx) => ({ ...row, id: `row-${i + idx}` }))
+      );
+    }
+
+    return allRows;
+  };
 
   return (
     <div style={{ padding: '2rem' }}>
       <PaginatedDataTable
-        rows={rows}
+        loadData={loadData}
         headers={headers}
         defaultPageSize={50}
         pageSizes={[25, 50, 100, 200]}
@@ -189,7 +185,7 @@ export const LargeDataset = () => {
         }) => (
           <TableContainer
             title="DataTable"
-            description="10,000 rows - Web Worker + Cache">
+            description="10,000 rows - Async generation + Web Worker operations + Cache">
             <Table {...getTableProps()}>
               <TableHead>
                 <TableRow>
@@ -219,3 +215,4 @@ export const LargeDataset = () => {
     </div>
   );
 };
+

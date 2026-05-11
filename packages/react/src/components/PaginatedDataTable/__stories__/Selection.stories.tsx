@@ -17,15 +17,9 @@ import {
   TableContainer,
   TableSelectAll,
   TableSelectRow,
-  TableToolbar,
-  TableToolbarContent,
-  TableBatchActions,
-  TableBatchAction,
   Pagination,
-  Button,
   DataTableSkeleton,
 } from '@carbon/react';
-import { TrashCan, Save, Download } from '@carbon/icons-react';
 import { generateRows } from './test-data';
 
 export default {
@@ -45,15 +39,7 @@ const headers = [
 ];
 
 export const SmallDataset = () => {
-  const [rows, setRows] = useState<any[]>([]);
-
-  useEffect(() => {
-    setRows(generateRows(100));
-  }, []);
-
-  if (rows.length === 0) {
-    return <div style={{ padding: '2rem' }}>Loading...</div>;
-  }
+  const rows = generateRows(100);
 
   return (
     <div style={{ padding: '2rem' }}>

@@ -51,15 +51,7 @@ const headers = [
  * - Expected: < 100ms for all operations
  */
 export const SmallDataset = () => {
-  const [rows, setRows] = useState<any[]>([]);
-
-  useEffect(() => {
-    setRows(generateRows(100));
-  }, []);
-
-  if (rows.length === 0) {
-    return <div style={{ padding: '2rem' }}>Loading...</div>;
-  }
+  const rows = generateRows(100);
 
   return (
     <div style={{ padding: '2rem' }}>
