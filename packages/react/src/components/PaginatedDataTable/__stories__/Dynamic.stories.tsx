@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { PaginatedDataTable } from '../';
 import {
   Table,
@@ -22,7 +22,6 @@ import {
   TableSelectRow,
   Pagination,
   Button,
-  DataTableSkeleton,
 } from '@carbon/react';
 import { Add, TrashCan } from '@carbon/icons-react';
 import { generateRows } from './test-data';
@@ -135,23 +134,44 @@ export const SmallDataset = () => {
 };
 
 export const MediumDataset = () => {
-  const [rows, setRows] = useState(() => generateRows(500));
   const [nextId, setNextId] = useState(500);
+  const dataRef = useRef<any[]>([]);
+
+  // Async data loader
+  const loadData = useCallback(async () => {
+    const chunkSize = 100;
+    const totalRows = 500;
+    const allRows: any[] = [];
+
+    for (let i = 0; i < totalRows; i += chunkSize) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const count = Math.min(chunkSize, totalRows - i);
+      const chunk = generateRows(count, i);
+      allRows.push(...chunk);
+    }
+
+    dataRef.current = allRows;
+    return allRows;
+  }, []);
 
   const handleAddRow = () => {
-    const newRows = generateRows(nextId + 1);
-    const newRow = newRows[newRows.length - 1];
-    setRows([...rows, newRow]);
+    const newRows = generateRows(1, nextId);
+    const newRow = newRows[0];
+    dataRef.current = [...dataRef.current, newRow];
     setNextId(nextId + 1);
   };
 
   const handleDeleteSelected = (selectedIds: string[]) => {
-    setRows(rows.filter((row) => !selectedIds.includes(row.id)));
+    dataRef.current = dataRef.current.filter((row) => !selectedIds.includes(row.id));
   };
 
   return (
     <div style={{ padding: '2rem' }}>
-      <PaginatedDataTable rows={rows} headers={headers} isSortable useWorker>
+      <PaginatedDataTable
+        loadData={loadData}
+        headers={headers}
+        isSortable
+        useWorker>
         {({
           rows: displayRows,
           headers,
@@ -168,7 +188,7 @@ export const MediumDataset = () => {
         }) => (
           <TableContainer
             title="DataTable"
-            description={`500 rows - Web Worker - ${rows.length} total, ${selectedRows.length} selected`}>
+            description={`500 rows - Web Worker - ${dataRef.current.length} total, ${selectedRows.length} selected`}>
             <TableToolbar {...getToolbarProps()}>
               <TableToolbarContent>
                 <TableToolbarSearch
@@ -226,55 +246,45 @@ export const MediumDataset = () => {
 };
 
 export const LargeDataset = () => {
-  const [rows, setRows] = useState<any[]>([]);
-  const [isGenerating, setIsGenerating] = useState(true);
   const [nextId, setNextId] = useState(10000);
+  const dataRef = useRef<any[]>([]);
 
-  useEffect(() => {
-    const generateAsync = async () => {
-      setIsGenerating(true);
-      const chunkSize = 1000;
-      const totalRows = 10000;
-      const allRows: any[] = [];
+  // Async data loader - component will call this
+  const loadData = useCallback(async () => {
+    const chunkSize = 100;
+    const totalRows = 10000;
+    const allRows: any[] = [];
 
-      for (let i = 0; i < totalRows; i += chunkSize) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        const chunk = generateRows(chunkSize);
-        allRows.push(
-          ...chunk.map((row, idx) => ({ ...row, id: `row-${i + idx}` }))
-        );
-      }
+    for (let i = 0; i < totalRows; i += chunkSize) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      
+      const count = Math.min(chunkSize, totalRows - i);
+      const chunk = generateRows(count, i);
+      
+      allRows.push(...chunk);
+    }
 
-      setRows(allRows);
-      setIsGenerating(false);
-    };
-
-    generateAsync();
+    dataRef.current = allRows;
+    return allRows;
   }, []);
 
   const handleAddRow = () => {
-    const newRows = generateRows(nextId + 1);
-    const newRow = newRows[newRows.length - 1];
-    setRows([...rows, newRow]);
+    // Note: Adding rows dynamically with loadData pattern requires
+    // managing data externally or using a different approach
+    const newRows = generateRows(1, nextId);
+    const newRow = newRows[0];
+    dataRef.current = [...dataRef.current, newRow];
     setNextId(nextId + 1);
   };
 
   const handleDeleteSelected = (selectedIds: string[]) => {
-    setRows(rows.filter((row) => !selectedIds.includes(row.id)));
+    dataRef.current = dataRef.current.filter((row) => !selectedIds.includes(row.id));
   };
-
-  if (isGenerating) {
-    return (
-      <div style={{ padding: '2rem' }}>
-        <DataTableSkeleton columnCount={headers.length} rowCount={10} />
-      </div>
-    );
-  }
 
   return (
     <div style={{ padding: '2rem' }}>
       <PaginatedDataTable
-        rows={rows}
+        loadData={loadData}
         headers={headers}
         isSortable
         useWorker
@@ -295,7 +305,7 @@ export const LargeDataset = () => {
         }) => (
           <TableContainer
             title="DataTable"
-            description={`10,000 rows - Web Worker + Cache - ${rows.length} total, ${selectedRows.length} selected - Try adding/deleting rows!`}>
+            description={`10,000 rows - Web Worker + Cache - ${dataRef.current.length} total, ${selectedRows.length} selected`}>
             <TableToolbar {...getToolbarProps()}>
               <TableToolbarContent>
                 <TableToolbarSearch

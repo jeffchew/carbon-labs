@@ -85,17 +85,28 @@ const groups = [
 
 /**
  * Generate diverse test data for realistic search/filter scenarios
+ * Optimized for performance with large datasets
+ * @param {number} count - Number of rows to generate
+ * @param {number} startIndex - Starting index for row IDs (default: 0)
+ * @returns {Array} Array of generated row objects
  */
-export const generateRows = (count: number) => {
-  return Array.from({ length: count }, (_, i) => ({
-    id: `row-${i}`,
-    name: `${names[i % names.length]} ${Math.floor(i / names.length) + 1}`,
-    protocol: protocols[i % protocols.length],
-    port: 3000 + (i % 100),
-    rule: rules[i % rules.length],
-    attached_groups: groups[i % groups.length],
-    status: statuses[i % statuses.length],
-    region: regions[i % regions.length],
-    environment: environments[i % environments.length],
-  }));
+export const generateRows = (count: number, startIndex = 0) => {
+  const rows = new Array(count);
+  
+  for (let i = 0; i < count; i++) {
+    const idx = startIndex + i;
+    rows[i] = {
+      id: `row-${idx}`,
+      name: `${names[idx % names.length]} ${Math.floor(idx / names.length) + 1}`,
+      protocol: protocols[idx % protocols.length],
+      port: 3000 + (idx % 100),
+      rule: rules[idx % rules.length],
+      attached_groups: groups[idx % groups.length],
+      status: statuses[idx % statuses.length],
+      region: regions[idx % regions.length],
+      environment: environments[idx % environments.length],
+    };
+  }
+  
+  return rows;
 };

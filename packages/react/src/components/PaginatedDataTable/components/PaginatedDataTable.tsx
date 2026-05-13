@@ -11,8 +11,8 @@ import React, {
   useMemo,
   useEffect,
   useCallback,
+  useRef,
   ReactElement,
-  startTransition,
 } from 'react';
 import { DataTable, DataTableSkeleton } from '@carbon/react';
 import type { DataTableProps, DataTableRenderProps } from '@carbon/react';
@@ -188,26 +188,74 @@ export const PaginatedDataTable: React.FC<PaginatedDataTableProps> = React.memo(
     onLoadError,
     ...carbonDataTableProps
   }) => {
-    // State
+    // In-memory data storage (not in React state to avoid re-renders)
+    const fullDataRef = useRef<any[]>(initialRows || []);
+    const processedDataRef = useRef<any[]>(initialRows || []);
+    
+    // State - only for UI and current page
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(defaultPageSize);
     const [searchValue, setSearchValue] = useState('');
     const [_sortColumn, _setSortColumn] = useState<string | null>(null);
     const [_sortDirection, _setSortDirection] = useState<SortDirection>('asc');
-    const [loadedRows, setLoadedRows] = useState<any[]>(initialRows || []);
     const [isLoading, setIsLoading] = useState(!!loadData);
-    const [processedRows, setProcessedRows] = useState<any[]>(initialRows || []);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [selectionVersion, setSelectionVersion] = useState(0); // Force re-render on selection changes
+    const [selectionVersion, setSelectionVersion] = useState(0);
+    const [currentPageRows, setCurrentPageRows] = useState<any[]>([]);
+    const [totalItems, setTotalItems] = useState(initialRows?.length || 0);
 
-    // Managers (initialized once) - lazy initialization to avoid blocking
-    const sortManager = useMemo(() => new SortManager(), []);
-    const filterManager = useMemo(() => new FilterManager(), []);
-    const selectionManager = useMemo(() => new SelectionManager(), []);
-    const workerManager = useMemo(() => new WorkerManager(), []);
-    const cache = useMemo(
-      () => (cacheKey ? new IndexedDBCache() : null),
-      [cacheKey]
+    // Managers - use lazy initialization with refs (only create when needed)
+    const sortManagerRef = useRef<SortManager | null>(null);
+    const filterManagerRef = useRef<FilterManager | null>(null);
+    const selectionManagerRef = useRef<SelectionManager | null>(null);
+    const workerManagerRef = useRef<WorkerManager | null>(null);
+    const cacheRef = useRef<IndexedDBCache | null>(null);
+
+    // Lazy getters - only create managers when first accessed
+    const getSortManager = useCallback(() => {
+      if (!sortManagerRef.current) {
+        sortManagerRef.current = new SortManager();
+      }
+      return sortManagerRef.current;
+    }, []);
+
+    const getFilterManager = useCallback(() => {
+      if (!filterManagerRef.current) {
+        filterManagerRef.current = new FilterManager();
+      }
+      return filterManagerRef.current;
+    }, []);
+
+    const getSelectionManager = useCallback(() => {
+      if (!selectionManagerRef.current) {
+        selectionManagerRef.current = new SelectionManager();
+      }
+      return selectionManagerRef.current;
+    }, []);
+
+    const getWorkerManager = useCallback(() => {
+      if (!workerManagerRef.current) {
+        workerManagerRef.current = new WorkerManager();
+      }
+      return workerManagerRef.current;
+    }, []);
+
+    const getCache = useCallback(() => {
+      if (cacheKey && !cacheRef.current) {
+        cacheRef.current = new IndexedDBCache();
+      }
+      return cacheRef.current;
+    }, [cacheKey]);
+
+    // Helper to update current page from processed data
+    const updateCurrentPage = useCallback(
+      (newPage: number, newPageSize: number, data: any[]) => {
+        const pagination = calculatePagination(newPage, newPageSize, data.length);
+        const pageData = data.slice(pagination.startIndex, pagination.endIndex);
+        setCurrentPageRows(pageData);
+        setTotalItems(data.length);
+      },
+      []
     );
 
     // Load data if loadData prop is provided
@@ -217,135 +265,148 @@ export const PaginatedDataTable: React.FC<PaginatedDataTableProps> = React.memo(
           setIsLoading(true);
           try {
             const data = await loadData();
-            setLoadedRows(data);
-            setProcessedRows(data);
+            // Store in ref, not state
+            fullDataRef.current = data;
+            processedDataRef.current = data;
+            setTotalItems(data.length);
+            // Update current page
+            updateCurrentPage(1, pageSize, data);
           } catch (error) {
             console.error('Error loading data:', error);
             onLoadError?.(error as Error);
-            setLoadedRows([]);
-            setProcessedRows([]);
+            fullDataRef.current = [];
+            processedDataRef.current = [];
+            setTotalItems(0);
+            setCurrentPageRows([]);
           } finally {
             setIsLoading(false);
           }
         };
         load();
       }
-    }, [loadData, onLoadError]);
+    }, [loadData, onLoadError, pageSize, updateCurrentPage]);
 
     // Subscribe to selection changes
     useEffect(() => {
-      const unsubscribe = selectionManager.subscribe(() => {
+      const manager = getSelectionManager();
+      const unsubscribe = manager.subscribe(() => {
         setSelectionVersion((v) => v + 1);
       });
       return unsubscribe;
-    }, [selectionManager]);
+    }, [getSelectionManager]);
 
-    // Use loaded rows or initial rows
-    const sourceRows = loadData ? loadedRows : (initialRows || []);
+    // Update initial rows in ref when they change
+    useEffect(() => {
+      if (!loadData && initialRows) {
+        fullDataRef.current = initialRows;
+        processedDataRef.current = initialRows;
+        setTotalItems(initialRows.length);
+        updateCurrentPage(page, pageSize, initialRows);
+      }
+    }, [initialRows, loadData, page, pageSize, updateCurrentPage]);
 
     // Determine if we should use Web Worker
-    const shouldUseWorker = forceWorker || sourceRows.length > 10000;
+    const shouldUseWorker = forceWorker || fullDataRef.current.length > 10000;
 
-    // Load from cache on mount (non-blocking)
-    useEffect(() => {
-      if (cache && cacheKey) {
-        cache.get(cacheKey).then((cachedData) => {
-          if (cachedData) {
-            startTransition(() => {
-              setProcessedRows(cachedData);
-            });
-          }
-        });
-      }
-    }, [cache, cacheKey]);
 
-    // Process data (sort + filter) - only when search/sort changes
+    // Process data (sort + filter) - operates on refs, only updates current page in state
     useEffect(() => {
       const processData = async () => {
-        // Skip processing if no search or sort
+        // Don't process if we don't have data yet
+        if (fullDataRef.current.length === 0) {
+          return;
+        }
+
+        // Skip processing if no search or sort - use full data
         if (!searchValue && !_sortColumn) {
-          startTransition(() => {
-            setProcessedRows(sourceRows);
-          });
+          processedDataRef.current = fullDataRef.current;
+          updateCurrentPage(page, pageSize, fullDataRef.current);
           return;
         }
 
         setIsProcessing(true);
-        let result = sourceRows;
+        let result = fullDataRef.current;
 
         try {
           // Filter
           if (searchValue) {
             const columnIds = headers.map((h: any) => h.key);
             if (shouldUseWorker) {
-              // Use Web Worker for large datasets
-              result = await workerManager.search(
-                result,
-                searchValue,
-                columnIds
-              );
+              result = await getWorkerManager().search(result, searchValue, columnIds);
             } else {
-              result = filterManager.filter(result, searchValue, columnIds);
+              result = getFilterManager().filter(result, searchValue, columnIds);
             }
           }
 
           // Sort
           if (_sortColumn) {
             if (shouldUseWorker) {
-              // Use Web Worker for large datasets
-              result = await workerManager.sort(
-                result,
-                _sortColumn,
-                _sortDirection
-              );
+              result = await getWorkerManager().sort(result, _sortColumn, _sortDirection);
             } else {
-              result = sortManager.sort(result, _sortColumn, _sortDirection);
+              result = getSortManager().sort(result, _sortColumn, _sortDirection);
             }
           }
 
-          startTransition(() => {
-            setProcessedRows(result);
-          });
+          // Store processed data in ref
+          processedDataRef.current = result;
+
+          // Update current page in state
+          updateCurrentPage(page, pageSize, result);
 
           // Cache result
+          const cache = getCache();
           if (cache && cacheKey) {
             await cache.set(cacheKey, result);
           }
         } catch (error) {
           console.error('Error processing data:', error);
-          setProcessedRows(sourceRows);
+          processedDataRef.current = fullDataRef.current;
+          updateCurrentPage(page, pageSize, fullDataRef.current);
         } finally {
           setIsProcessing(false);
         }
       };
 
       processData();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
       searchValue,
       _sortColumn,
       _sortDirection,
-      initialRows,
-      loadedRows,
-      // Note: headers, managers intentionally not in deps to avoid re-processing on every render
+      page,
+      pageSize,
+      shouldUseWorker,
+      updateCurrentPage,
+      headers,
+      cacheKey,
+      getWorkerManager,
+      getFilterManager,
+      getSortManager,
+      getCache,
     ]);
 
-    // Calculate pagination
-    const pagination = useMemo(
-      () => calculatePagination(page, pageSize, processedRows.length),
-      [page, pageSize, processedRows.length]
+    // Get selected rows using SelectionManager (from processed data ref)
+    const selectedRows = useMemo(
+      () => getSelectionManager().getSelectedRows(processedDataRef.current),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [getSelectionManager, selectionVersion]
     );
 
-    // Get current page data
-    const currentPageRows = useMemo(() => {
-      return processedRows.slice(pagination.startIndex, pagination.endIndex);
-    }, [processedRows, pagination.startIndex, pagination.endIndex]);
-
-    // Get selected rows using SelectionManager
-    const selectedRows = useMemo(
-      () => selectionManager.getSelectedRows(processedRows),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [selectionManager, processedRows, selectionVersion]
+    // Handle sort
+    const handleSort = useCallback(
+      (columnKey: string) => {
+        let newDirection: SortDirection = 'asc';
+        
+        if (_sortColumn === columnKey) {
+          // Toggle direction if same column
+          newDirection = _sortDirection === 'asc' ? 'desc' : 'asc';
+        }
+        
+        _setSortColumn(columnKey);
+        _setSortDirection(newDirection);
+        setPage(1); // Reset to first page
+        _onSort?.(columnKey, newDirection);
+      },
+      [_sortColumn, _sortDirection, _onSort]
     );
 
     // Handle search
@@ -378,51 +439,73 @@ export const PaginatedDataTable: React.FC<PaginatedDataTableProps> = React.memo(
     // Get pagination props helper
     const getPaginationProps = useCallback(
       () => ({
-        page: pagination.page,
-        pageSize: pagination.pageSize,
+        page,
+        pageSize,
         pageSizes,
-        totalItems: pagination.totalItems,
+        totalItems,
         onChange: handlePaginationChange,
       }),
-      [pagination, pageSizes, handlePaginationChange]
+      [page, pageSize, pageSizes, totalItems, handlePaginationChange]
     );
 
     // Cleanup
     useEffect(() => {
       return () => {
-        workerManager.terminate();
-        cache?.close();
+        workerManagerRef.current?.terminate();
+        cacheRef.current?.close();
       };
-    }, [workerManager, cache]);
+    }, []);
+
+    // Enhanced header props that intercept sort clicks
+    const getEnhancedHeaderProps = useCallback(
+      (carbonGetHeaderProps: any) => {
+        return (args?: any) => {
+          const baseProps = carbonGetHeaderProps?.(args) || {};
+          const header = args?.header;
+          
+          if (header && carbonDataTableProps.isSortable) {
+            return {
+              ...baseProps,
+              isSortable: true,
+              sortDirection: _sortColumn === header.key ? _sortDirection : 'NONE',
+              onClick: () => handleSort(header.key),
+            };
+          }
+          
+          return baseProps;
+        };
+      },
+      [_sortColumn, _sortDirection, handleSort, carbonDataTableProps.isSortable]
+    );
 
     // Enhanced selection props that use SelectionManager
     const getEnhancedSelectionProps = useCallback(
       (carbonGetSelectionProps: any) => {
         return (args?: any) => {
           const baseProps = carbonGetSelectionProps?.(args) || {};
+          const manager = getSelectionManager();
 
           if (args?.row) {
             // Individual row selection
             return {
               ...baseProps,
-              checked: selectionManager.isSelected(args.row.id),
+              checked: manager.isSelected(args.row.id),
               onSelect: () => {
-                selectionManager.toggle(args.row.id);
+                manager.toggle(args.row.id);
               },
             };
           } else {
             // Select all on current page
-            const allCurrentSelected =
-              selectionManager.areAllSelected(currentPageRows);
+            const allCurrentSelected = manager.areAllSelected(currentPageRows);
 
             return {
               ...baseProps,
               checked: allCurrentSelected && currentPageRows.length > 0,
               onSelect: () => {
                 if (allCurrentSelected) {
-                  selectionManager.deselectAll(currentPageRows);
+                  manager.deselectAll(currentPageRows);
                 } else {
-                  selectionManager.selectAll(currentPageRows);
+                  manager.selectAll(currentPageRows);
                 }
               },
             };
@@ -430,7 +513,7 @@ export const PaginatedDataTable: React.FC<PaginatedDataTableProps> = React.memo(
         };
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [selectionManager, currentPageRows, selectionVersion]
+      [getSelectionManager, currentPageRows, selectionVersion]
     );
 
     // Show skeleton while loading
@@ -451,9 +534,12 @@ export const PaginatedDataTable: React.FC<PaginatedDataTableProps> = React.memo(
         headers={headers}
         {...carbonDataTableProps}>
         {(carbonRenderProps: DataTableRenderProps<any, any>) => {
-          // Extend Carbon's render props with pagination and selection helpers
+          // Extend Carbon's render props with pagination, sort, and selection helpers
           const extendedProps: PaginatedDataTableRenderProps = {
             ...carbonRenderProps,
+            getHeaderProps: getEnhancedHeaderProps(
+              carbonRenderProps.getHeaderProps
+            ),
             getSelectionProps: getEnhancedSelectionProps(
               carbonRenderProps.getSelectionProps
             ),
