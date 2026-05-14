@@ -3,6 +3,71 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.149.0](https://github.com/carbon-design-system/carbon-labs/compare/@carbon-labs/web-components@0.148.0...@carbon-labs/web-components@0.149.0) (2026-05-14)
+
+
+### Bug Fixes
+
+* **examples:** update react and web components standalone examples ([#1230](https://github.com/carbon-design-system/carbon-labs/issues/1230)) ([0ba3c58](https://github.com/carbon-design-system/carbon-labs/commit/0ba3c5866a08459a9e220737e85ce256cec08463))
+
+
+
+
+
+# [0.148.0](https://github.com/carbon-design-system/carbon-labs/compare/@carbon-labs/web-components@0.147.0...@carbon-labs/web-components@0.148.0) (2026-05-13)
+
+
+### Features
+
+* **v12:** Configure dual-build Storybook architecture for v12 migration ([#1209](https://github.com/carbon-design-system/carbon-labs/issues/1209)) ([78ed8d4](https://github.com/carbon-design-system/carbon-labs/commit/78ed8d406f84fd877be4cda0fc17fee17a69ad48))
+
+
+
+
+
+# [0.147.0](https://github.com/carbon-design-system/carbon-labs/compare/@carbon-labs/web-components@0.146.0...@carbon-labs/web-components@0.147.0) (2026-05-12)
+
+**Note:** Version bump only for package @carbon-labs/web-components
+
+
+
+
+
+# [0.146.0](https://github.com/carbon-design-system/carbon-labs/compare/@carbon-labs/web-components@0.145.0...@carbon-labs/web-components@0.146.0) (2026-05-12)
+
+**Note:** Version bump only for package @carbon-labs/web-components
+
+
+
+
+
+# [0.145.0](https://github.com/carbon-design-system/carbon-labs/compare/@carbon-labs/web-components@0.144.0...@carbon-labs/web-components@0.145.0) (2026-05-12)
+
+
+### Features
+
+* resizer web components initial commit ([#1166](https://github.com/carbon-design-system/carbon-labs/issues/1166)) ([eface45](https://github.com/carbon-design-system/carbon-labs/commit/eface450134d48df69e5f36841b4455aafbbe57a))
+
+
+
+
+
+# [0.144.0](https://github.com/carbon-design-system/carbon-labs/compare/@carbon-labs/web-components@0.143.0...@carbon-labs/web-components@0.144.0) (2026-05-12)
+
+**Note:** Version bump only for package @carbon-labs/web-components
+
+
+
+
+
+# [0.143.0](https://github.com/carbon-design-system/carbon-labs/compare/@carbon-labs/web-components@0.142.0...@carbon-labs/web-components@0.143.0) (2026-05-12)
+
+**Note:** Version bump only for package @carbon-labs/web-components
+
+
+
+
+
 # [0.142.0](https://github.com/carbon-design-system/carbon-labs/compare/@carbon-labs/web-components@0.141.0...@carbon-labs/web-components@0.142.0) (2026-05-08)
 
 **Note:** Version bump only for package @carbon-labs/web-components
